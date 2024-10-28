@@ -1,9 +1,5 @@
 import express from "express";
 import { priceRouter } from "./router/price_router.js";
-import crypto from "crypto";
-
-const id = crypto.randomUUID();
-console.log(id);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
