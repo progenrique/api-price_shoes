@@ -105,7 +105,10 @@ export const postPago = async (req, res) => {
   try {
     const resultValidacion = validacionPago(req.body);
     if (resultValidacion.success === false)
-      throw { statusCode: 400, validationError: validacion.error.issues[0] };
+      throw {
+        statusCode: 400,
+        validationError: resultValidacion.error.issues[0],
+      };
 
     const data = {
       ...resultValidacion.data,
@@ -216,6 +219,51 @@ export const updatePago = async (req, res) => {
     } else {
       res.send(resultUpdate);
     }
+  } catch (error) {
+    if (error.hasOwnProperty("statusCode")) {
+      console.log(error);
+      res.status(error.statusCode).send(error);
+    } else {
+      console.log(error);
+    }
+  }
+};
+
+export const deleteAllPagos = async (req, res) => {
+  try {
+    const result = await modelPrice.deleteAllPagos(req.params.id);
+    if (result.error) throw result;
+    res.send(result);
+  } catch (error) {
+    if (error.hasOwnProperty("statusCode")) {
+      console.log(error);
+      res.status(error.statusCode).send(error);
+    } else {
+      console.log(error);
+    }
+  }
+};
+
+export const deletePago = async (req, res) => {
+  try {
+    const result = await modelPrice.deletePago(req.params.pagoId);
+    if (result.error) throw result;
+    res.send(result);
+  } catch (error) {
+    if (error.hasOwnProperty("statusCode")) {
+      console.log(error);
+      res.status(error.statusCode).send(error);
+    } else {
+      console.log(error);
+    }
+  }
+};
+
+export const getLiquidados = async (req, res) => {
+  try {
+    const result = await modelPrice.getLiquidados(req.params.id);
+    if (result.error) throw result;
+    res.send(result);
   } catch (error) {
     if (error.hasOwnProperty("statusCode")) {
       console.log(error);

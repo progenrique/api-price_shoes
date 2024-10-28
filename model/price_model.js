@@ -1,7 +1,5 @@
 import msql from "mysql2/promise";
 
-// estudiar a fondo promesas y async await
-
 const config = {
   host: "localhost",
   user: "root",
@@ -18,6 +16,7 @@ const pool = msql.createPool({
 });
 
 const connection = await msql.createConnection(config);
+const connectionTransaction = await pool.getConnection(); // Obtener la conexión
 
 const validarExistenciaClienteId = async (id) => {
   const [resultId] = await connection.query(
@@ -175,7 +174,6 @@ group by clientes.id;`;
     } = data;
     const resultCliente = await validarExistenciaClienteId(id);
     if (resultCliente.error) return resultCliente;
-    const connectionTransaction = await pool.getConnection(); // Obtener la conexión
 
     try {
       await connectionTransaction.beginTransaction(); // Iniciar la transacción
@@ -289,6 +287,7 @@ group by clientes.id;`;
       await connectionTransaction.rollback();
       console.log(error);
       if (error.code === "ER_NO_REFERENCED_ROW_2") {
+        console.log(error);
         return {
           error: true,
           statusCode: 400,
@@ -469,12 +468,182 @@ group by clientes.id;`;
           mesage: `pago actualizado correctamente`,
         };
       }
-      return data;
     } catch (error) {
       if (error.hasOwnProperty("code")) {
         console.log(error);
         return { error: true, code: error.code, statusCode: 400 };
       } else {
+        return error;
+      }
+    }
+  },
+  deleteAllPagos: async (clienteId) => {
+    try {
+      await connectionTransaction.beginTransaction();
+
+      //comprobar si hay pedido y guardarlo para las siguientes consultas
+      const [resultPedidoId] = await connection.query(
+        `SELECT pedidos.id as pedido_id from pedidos 
+        join clientes on clientes.id=pedidos.cliente_id
+        where clientes.id =uuid_to_bin(?)`,
+        [clienteId]
+      );
+      if (resultPedidoId.length === 0)
+        throw {
+          error: true,
+          statusCode: 400,
+          message: "no hay pedido asociado a este cliente",
+        };
+      const pedidoId = resultPedidoId[0].pedido_id;
+
+      //comprobar si hay pagos para liberar el pedido
+      const [resultPagos] = await connection.query(
+        `SELECT * FROM price_shoes.pagos where pedido_id =?;`,
+        [pedidoId]
+      );
+      if (resultPagos.length === 0)
+        throw {
+          error: true,
+          statusCode: 400,
+          message: "no hay pagos para liquidar el pedido",
+        };
+
+      //pasar los pagos a liquidado
+
+      await connection.query(
+        `INSERT INTO pagos_liquidados (id, pago,fecha_abono,pedido_id)
+SELECT id, pago,fecha_abono,pedido_id
+FROM pagos
+WHERE pagos.pedido_id = ?;`,
+        [pedidoId]
+      );
+
+      // copiar el pedido a liquidado
+      await connection.query(
+        `INSERT INTO pedidos_liquidados (id, numero_pagos, talla, id_price, fecha_inicio, fecha_entrega,cliente_id,pago_id)
+SELECT id, numero_pagos, talla, id_price, fecha_inicio, fecha_entrega,cliente_id,pago_id
+FROM pedidos
+WHERE pedidos.id = ?;`,
+        [pedidoId]
+      );
+
+      // borrar pagos
+
+      await connection.query(`DELETE FROM pagos WHERE pedido_id = ?;`, [
+        pedidoId,
+      ]);
+
+      // borrar pedido
+
+      await connection.query(`DELETE FROM pedidos WHERE pedidos.id = ?;`, [
+        pedidoId,
+      ]);
+
+      return { success: true, message: "pedido liquidado" };
+    } catch (error) {
+      await connection.rollback();
+      if (error.hasOwnProperty("code")) {
+        console.log(error);
+        return { error: true, code: error.code, statusCode: 400 };
+      } else {
+        return error;
+      }
+    } finally {
+      connectionTransaction.release();
+    }
+  },
+  deletePago: async (pagoId) => {
+    try {
+      await connectionTransaction.beginTransaction();
+      //consultar si el pago existe
+      const [resultPago] = await connection.query(
+        `SELECT * FROM price_shoes.pagos where id=?`,
+        [pagoId]
+      );
+
+      if (resultPago.length === 0)
+        throw {
+          error: true,
+          statusCode: 400,
+          message: "no hay pagos con ese id",
+        };
+      const pedidoId = resultPago[0].id;
+
+      //pasar pagos a liquidado
+      const [resultLiquidado] = await connection.query(
+        `INSERT INTO pagos_liquidados (id, pago,fecha_abono,pedido_id)
+          SELECT id, pago,fecha_abono,pedido_id
+          FROM pagos
+          WHERE pagos.id = ?;`,
+        [pedidoId]
+      );
+
+      // eliminar el pago mediante el id del pago
+      await connection.query(`DELETE FROM pagos WHERE id = ?;`, [pagoId]);
+
+      if (resultLiquidado.affectedRows === 0) {
+        return {
+          error: true,
+          statusCode: 400,
+          message: "no se pudo eliminar los pagos intentar mas tarde",
+        };
+      } else {
+        return {
+          success: true,
+          mesage: `pagos eliminados correctamente`,
+        };
+      }
+    } catch (error) {
+      await connection.rollback();
+      if (error.hasOwnProperty("code")) {
+        console.log(error);
+        return { error: true, code: error.code, statusCode: 400 };
+      } else {
+        return error;
+      }
+    } finally {
+      connectionTransaction.release();
+    }
+  },
+  getLiquidados: async (clienteId) => {
+    try {
+      const consultaLiquidados = `select bin_to_uuid(id) as id, name,
+(select json_arrayagg(
+json_object(
+ "pedido_id", pedidos_liquidados.id,
+ "numero_pagos", pedidos_liquidados.numero_pagos,
+ "talla", pedidos_liquidados.talla,
+ "id_price", pedidos_liquidados.id_price,
+ "fecha_inicio", DATE_FORMAT(pedidos_liquidados.fecha_inicio, '%Y-%m-%d') ,
+ "fecha_entrega", DATE_FORMAT(pedidos_liquidados.fecha_entrega , '%Y-%m-%d') 
+ )) 
+ from pedidos_liquidados
+ where pedidos_liquidados.cliente_id=clientes.id ) as pedidos_liquidados,
+ (select json_arrayagg(
+ json_object(
+ "pago_id",pagos_liquidados.id,
+ "pago",pagos_liquidados.pago,
+ "fecha_abono", DATE_FORMAT(pagos_liquidados.fecha_abono , '%Y-%m-%d'),
+ "pedido_id",pagos_liquidados.pedido_id
+ ))
+ from pagos_liquidados
+ join pedidos_liquidados on pagos_liquidados.pedido_id=pedidos_liquidados.id 
+ where clientes.id= pedidos_liquidados.cliente_id)as pagos_liquidados
+from clientes 
+where clientes.id= uuid_to_bin(?);`;
+
+      const [resultLiquidados] = await connection.query(consultaLiquidados, [
+        clienteId,
+      ]);
+      if (resultLiquidados.length === 0)
+        throw { statusCode: 404, message: "no found" };
+      return resultLiquidados;
+    } catch (error) {
+      if (error.hasOwnProperty("code")) {
+        console.log(error);
+        return { error: true, code: error.code, statusCode: 400 };
+      } else {
+        console.log(error);
         return error;
       }
     }
