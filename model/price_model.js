@@ -124,7 +124,7 @@ group by clientes.id;`;
   },
   getProductos: async () => {
     try {
-      const consulta = `SELECT * FROM price_shoes.productos;`;
+      const consulta = `SELECT * FROM productos;`;
       const [result] = await connection.query(consulta);
       return result;
     } catch (error) {
