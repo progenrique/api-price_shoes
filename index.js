@@ -1,11 +1,12 @@
 import express from "express";
 import { priceRouter } from "./router/price_router.js";
+import { corsMiddleware } from "./midelware/corsMidelware.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.disable("x-powered-by");
-
+app.use(corsMiddleware());
 app.use(express.json());
 
 app.use("/", priceRouter);
