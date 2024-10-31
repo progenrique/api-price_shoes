@@ -53,6 +53,7 @@ group by clientes.id;`;
       const [data] = await connection.query(consulta);
       return data;
     } catch (error) {
+      console.log(error);
       const err = {
         error: true,
         code: error.code,
