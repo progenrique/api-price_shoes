@@ -31,7 +31,7 @@ priceRouter.post("/clientes/:id/pagos", postPago);
 
 priceRouter.patch("/clientes/:id", updateCliente);
 priceRouter.patch("/productos/:id", updateProducto);
-priceRouter.patch("/clientes/:id/pedido", updatePedido); // aqui no va el id del pedido porque cada cliente solo puede tener un pedido y se agregan cambian o quitan productos
+priceRouter.patch("/clientes/pedido/:id", updatePedido); // aqui no va el id del pedido porque cada cliente solo puede tener un pedido y se agregan cambian o quitan productos
 priceRouter.patch("/clientes/:id/pagos/:pago", updatePago); // aqui si va el numero de pago porque un pedido si va a tener diferentes pagos y con eso se cambia agrega y quitan pagos
 
 priceRouter.delete("/clientes/:id/pagos/", deleteAllPagos);

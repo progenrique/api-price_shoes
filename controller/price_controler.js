@@ -183,7 +183,6 @@ export const updatePedido = async (req, res) => {
     const resultValidacion = validacionUpdatePedido(req.body);
     if (resultValidacion.success === false)
       throw { ...resultValidacion.error.issues[0], statusCode: 405 };
-
     const resultUpdate = await modelPrice.updatePedido(
       resultValidacion.data,
       req.params.id

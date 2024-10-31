@@ -15,8 +15,9 @@ const pool = msql.createPool({
   queueLimit: 0,
 });
 
-const connection = await msql.createConnection(config);
-const connectionTransaction = await pool.getConnection(); // Obtener la conexión
+//const connection = await msql.createConnection(config);
+
+const connection = await pool.getConnection(); // Obtener la conexión
 
 const validarExistenciaClienteId = async (id) => {
   const [resultId] = await connection.query(
@@ -61,6 +62,9 @@ group by clientes.id;`;
         mesage: error.sqlMessage,
       };
       return err;
+    } finally {
+      // Liberar la conexión
+      if (connection) connection.release();
     }
   },
   getClientes: async () => {
@@ -76,6 +80,9 @@ group by clientes.id;`;
         mesage: error.sqlMessage,
       };
       return err;
+    } finally {
+      // Liberar la conexión
+      if (connection) connection.release();
     }
   },
   getCliente: async (id) => {
@@ -121,6 +128,9 @@ group by clientes.id;`;
       } else {
         return error;
       }
+    } finally {
+      // Liberar la conexión
+      if (connection) connection.release();
     }
   },
   getProductos: async () => {
@@ -129,6 +139,7 @@ group by clientes.id;`;
       const [result] = await connection.query(consulta);
       return result;
     } catch (error) {
+      console.error(error);
       const err = {
         error: true,
         code: error.code,
@@ -136,6 +147,9 @@ group by clientes.id;`;
         mesage: error.sqlMessage,
       };
       return err;
+    } finally {
+      // Liberar la conexión
+      if (connection) connection.release();
     }
   },
   postClientes: async (data) => {
@@ -145,15 +159,21 @@ group by clientes.id;`;
       const [result] = await connection.query(consulta, datosAEnviar);
       console.log(result);
     } catch (error) {
-      const err = {
-        error: true,
-        code: error.code,
-        statusCode: 422,
-        mesage:
-          "error al intentar acceder a la base de datos favor de intentar mas tarde",
-      };
-      console.log(err);
-      return err;
+      console.error(error);
+      console.error(error);
+      if (error.hasOwnProperty("code")) {
+        return {
+          error: true,
+          code: error.code,
+          statusCode: 400,
+          mesage: error.sqlMessage,
+        };
+      } else {
+        return error;
+      }
+    } finally {
+      // Liberar la conexión
+      if (connection) connection.release();
     }
   },
   postPedido: async (data, id) => {
@@ -177,7 +197,7 @@ group by clientes.id;`;
     if (resultCliente.error) return resultCliente;
 
     try {
-      await connectionTransaction.beginTransaction(); // Iniciar la transacción
+      await connection.beginTransaction(); // Iniciar la transacción
       let reultsConsultas = {};
 
       // verificar si id_price existe en la BD
@@ -285,10 +305,10 @@ group by clientes.id;`;
       return reultsConsultas;
     } catch (error) {
       // Si ocurre un error, revertir todos los cambios
-      await connectionTransaction.rollback();
+      await connection.rollback();
       console.log(error);
       if (error.code === "ER_NO_REFERENCED_ROW_2") {
-        console.log(error);
+        console.error(error);
         return {
           error: true,
           statusCode: 400,
@@ -312,7 +332,7 @@ group by clientes.id;`;
       }
     } finally {
       // Liberar la conexión
-      connectionTransaction.release();
+      connection.release();
     }
   },
   postPago: async (data, clienteId) => {
@@ -346,12 +366,15 @@ group by clientes.id;`;
 
       return { success: true, message: "pago agregado correctamente." };
     } catch (error) {
+      console.error(error);
       if (error.hasOwnProperty("code")) {
-        console.log(error);
         return { error: true, code: error.code, statusCode: 400 };
       } else {
         return error;
       }
+    } finally {
+      // Liberar la conexión
+      if (connection) connection.release();
     }
   },
   updateCliente: async (data, clienteId) => {
@@ -376,11 +399,14 @@ group by clientes.id;`;
       }
     } catch (error) {
       if (error.hasOwnProperty("code")) {
-        console.log(error);
+        console.error(error);
         return { error: true, code: error.code, statusCode: 400 };
       } else {
         return error;
       }
+    } finally {
+      // Liberar la conexión
+      if (connection) connection.release();
     }
   },
   updateProducto: async (data, productoId) => {
@@ -401,6 +427,8 @@ group by clientes.id;`;
         `UPDATE productos SET ? WHERE id_price = ?;`,
         [data, productoId]
       );
+
+      console.log(resultUpdate);
       if (resultUpdate.affectedRows === 0) {
         return {
           error: true,
@@ -415,17 +443,25 @@ group by clientes.id;`;
       }
     } catch (error) {
       if (error.hasOwnProperty("code")) {
-        console.log(error);
+        console.error(error);
         return { error: true, code: error.code, statusCode: 400 };
       } else {
         return error;
       }
+    } finally {
+      // Liberar la conexión
+      if (connection) connection.release();
     }
   },
   updatePedido: async (data, pedidoId) => {
     try {
-      const resultCliente = await validarExistenciaClienteId(clienteId);
-      if (resultCliente.error) return resultCliente;
+      const [resultPedido] = await connection.query(
+        `SELECT id FROM pedidos where id=767158;`,
+        [pedidoId]
+      );
+
+      if (resultPedido.length === 0)
+        return { error: true, mesage: "pedido no encontrado", statusCode: 404 };
       const resultUpdate = await connection.query(
         `UPDATE pedidos SET ? WHERE id = ?;`,
         [data, pedidoId]
@@ -449,6 +485,9 @@ group by clientes.id;`;
       } else {
         return error;
       }
+    } finally {
+      // Liberar la conexión
+      if (connection) connection.release();
     }
   },
   updatePago: async (data, pagoId) => {
@@ -476,11 +515,14 @@ group by clientes.id;`;
       } else {
         return error;
       }
+    } finally {
+      // Liberar la conexión
+      if (connection) connection.release();
     }
   },
   deleteAllPagos: async (clienteId) => {
     try {
-      await connectionTransaction.beginTransaction();
+      await connection.beginTransaction();
 
       //comprobar si hay pedido y guardarlo para las siguientes consultas
       const [resultPedidoId] = await connection.query(
@@ -550,12 +592,12 @@ WHERE pedidos.id = ?;`,
         return error;
       }
     } finally {
-      connectionTransaction.release();
+      connection.release();
     }
   },
   deletePago: async (pagoId) => {
     try {
-      await connectionTransaction.beginTransaction();
+      await connection.beginTransaction();
       //consultar si el pago existe
       const [resultPago] = await connection.query(
         `SELECT * FROM price_shoes.pagos where id=?`,
@@ -596,14 +638,19 @@ WHERE pedidos.id = ?;`,
       }
     } catch (error) {
       await connection.rollback();
+      console.error(error);
       if (error.hasOwnProperty("code")) {
-        console.log(error);
-        return { error: true, code: error.code, statusCode: 400 };
+        return {
+          error: true,
+          code: error.code,
+          statusCode: 400,
+          mesage: error.sqlMessage,
+        };
       } else {
         return error;
       }
     } finally {
-      connectionTransaction.release();
+      connection.release();
     }
   },
   getLiquidados: async (clienteId) => {
@@ -647,6 +694,9 @@ where clientes.id= uuid_to_bin(?);`;
         console.log(error);
         return error;
       }
+    } finally {
+      // Liberar la conexión
+      if (connection) connection.release();
     }
   },
 };
