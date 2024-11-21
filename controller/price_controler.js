@@ -8,15 +8,45 @@ import {
   validacionUpdateProducto,
   validacionUpdatePedido,
   validacionUpdatePago,
+  validacionProducto,
 } from "../schemas/price_eschema.js";
+import { object } from "zod";
 
 export const getData = async (req, res) => {
   try {
     const result = await modelPrice.getAll();
     if (result.error) throw result;
-    const data = result.map((el) => {
-      return { ...el, resta: el.total_pedido - el.abonado };
+
+    const data = result.map((cliente) => {
+      return {
+        cliente_id: cliente.cliente_id,
+        name: cliente.name,
+        pedidos: cliente.pedidos.map((pedido) => {
+          let totalPrecio_lista = pedido.productos
+            .map((producto) => producto.precio_lista * producto.cantidad)
+            .reduce((acc, precio) => (acc += precio));
+          let totalPrecio_cliente = pedido.productos
+            .map((producto) => producto.precio_cliente * producto.cantidad)
+            .reduce((acc, precio) => (acc += precio));
+          let totalPagos =
+            pedido.pagos === null
+              ? 0
+              : pedido.pagos.reduce((acc, pago) => (acc += pago));
+          return {
+            ...pedido,
+
+            ganancia: totalPrecio_cliente - totalPrecio_lista,
+            restante: totalPrecio_cliente - totalPagos,
+            total: {
+              precio_lista: totalPrecio_lista,
+              precio_cliente: totalPrecio_cliente,
+              abonado: totalPagos,
+            },
+          };
+        }),
+      };
     });
+
     res.send(data);
   } catch (error) {
     console.log(error);
@@ -39,7 +69,43 @@ export const getCliente = async (req, res) => {
   try {
     const result = await modelPrice.getCliente(req.params.id);
     if (result.error) throw result;
-    res.send(result);
+
+    const data = result.map((cliente) => {
+      return {
+        cliente_id: cliente.id,
+        name: cliente.name,
+        pedidos: cliente.pedidos.map((pedido) => {
+          let totalPrecio_lista = pedido.productos
+            .map((producto) => producto.precio_lista * producto.cantidad)
+            .reduce((acc, precio) => (acc += precio));
+          let totalPrecio_cliente = pedido.productos
+            .map((producto) => producto.precio_cliente * producto.cantidad)
+            .reduce((acc, precio) => (acc += precio));
+          let totalPagos =
+            pedido.pagos === null
+              ? 0
+              : pedido.pagos
+                  .map((pago) => {
+                    return pago.pago;
+                  })
+                  .reduce((acc, pago) => (acc += pago));
+
+          return {
+            ...pedido,
+
+            ganancia: totalPrecio_cliente - totalPrecio_lista,
+            restante: totalPrecio_cliente - totalPagos,
+            total: {
+              precio_lista: totalPrecio_lista,
+              precio_cliente: totalPrecio_cliente,
+              abonado: totalPagos,
+            },
+          };
+        }),
+      };
+    });
+
+    res.send(data);
   } catch (error) {
     if (error.hasOwnProperty("statusCode")) {
       console.log(error);
@@ -71,7 +137,37 @@ export const postClientes = async (req, res) => {
     if (result.error) throw result;
     res.send(result);
   } catch (error) {
-    res.status(error.statusCode).send(error);
+    if (error.hasOwnProperty("statusCode")) {
+      res.status(error.statusCode).send(error);
+    } else {
+      res.send(error);
+    }
+  }
+};
+
+export const postProductos = async (req, res) => {
+  try {
+    const resultValidacion = validacionProducto(req.body);
+
+    if (resultValidacion.success === false) {
+      const error = resultValidacion.error.issues.map((el) => {
+        return { ...el, statusCode: 405 };
+      });
+      throw error[0];
+    }
+
+    const data = {
+      ...resultValidacion.data,
+      id: Math.floor(Math.random() * 1000000) + 1,
+    };
+    const result = await modelPrice.postProductos(data);
+
+    if (result.error) throw result;
+    res.send(result);
+  } catch (error) {
+    if (error.statusCode) {
+      res.status(error.statusCode).send(error);
+    } else res.send(error);
   }
 };
 
@@ -89,8 +185,40 @@ export const postPedido = async (req, res) => {
     const data = {
       ...resultValidacion.data,
       pedidoId: Math.floor(Math.random() * 1000000) + 1,
+      productoId: Math.floor(Math.random() * 1000000) + 1,
     };
     const result = await modelPrice.postPedido(data, req.params.id);
+
+    if (result.error) throw result;
+    res.send(result);
+  } catch (error) {
+    if (error.statusCode) {
+      res.status(error.statusCode).send(error);
+    } else res.send(error);
+  }
+};
+
+export const postProductoToPedido = async (req, res) => {
+  try {
+    const resultValidacion = validacionProducto(req.body);
+
+    if (resultValidacion.success === false) {
+      const error = resultValidacion.error.issues.map((el) => {
+        return { ...el, statusCode: 405 };
+      });
+      throw error[0];
+    }
+
+    const params = {
+      cliente_id: req.params.clienteId,
+      pedido_id: req.params.pedidoId,
+    };
+
+    const data = {
+      ...resultValidacion.data,
+      id: Math.floor(Math.random() * 1000000) + 1,
+    };
+    const result = await modelPrice.postProductoToPedido(data, params);
 
     if (result.error) throw result;
     res.send(result);
@@ -104,6 +232,7 @@ export const postPedido = async (req, res) => {
 export const postPago = async (req, res) => {
   try {
     const resultValidacion = validacionPago(req.body);
+
     if (resultValidacion.success === false)
       throw {
         statusCode: 400,
@@ -114,8 +243,11 @@ export const postPago = async (req, res) => {
       ...resultValidacion.data,
       id: Math.floor(Math.random() * 1000000) + 1,
     };
-
-    const resultConsulta = await modelPrice.postPago(data, req.params.id);
+    const params = {
+      clienteId: req.params.clienteId,
+      pedidoId: req.params.pedidoId,
+    };
+    const resultConsulta = await modelPrice.postPago(data, params);
 
     if (resultConsulta.error) throw resultConsulta;
 
@@ -159,14 +291,19 @@ export const updateProducto = async (req, res) => {
     const resultValidacion = validacionUpdateProducto(req.body);
     if (resultValidacion.success === false)
       throw { ...resultValidacion.error.issues[0], statusCode: 405 };
-    const resultUpdate = await modelPrice.updateProducto(
-      resultValidacion.data,
-      req.params.id
-    );
-    if (resultUpdate.error) {
-      throw resultUpdate;
+    //verificar que la validacion no venga vacia
+    if (Object.keys(resultValidacion.data).length === 0) {
+      res.status(400).send("no se enviaron datos o son invalidos");
     } else {
-      res.send(resultUpdate);
+      const resultUpdate = await modelPrice.updateProducto(
+        resultValidacion.data,
+        req.params.id
+      );
+      if (resultUpdate.error) {
+        throw resultUpdate;
+      } else {
+        res.send(resultUpdate);
+      }
     }
   } catch (error) {
     if (error.hasOwnProperty("statusCode")) {
@@ -180,19 +317,34 @@ export const updateProducto = async (req, res) => {
 
 export const updatePedido = async (req, res) => {
   try {
+    // validacion de los datos
     const resultValidacion = validacionUpdatePedido(req.body);
     if (resultValidacion.success === false)
       throw { ...resultValidacion.error.issues[0], statusCode: 405 };
+
+    //separar los datos porque son 2 tablas las que se deben modificar para los pedidos
+    // pedidos y pedidos_productos
+
+    let dataPedidos = {};
+    let dataPedidosProductos = {};
+    for (const key in resultValidacion.data) {
+      if (key === "talla" || key === "cantidad") {
+        dataPedidosProductos = {
+          ...dataPedidosProductos,
+          [key]: resultValidacion.data[key],
+        };
+      } else {
+        dataPedidos = { ...dataPedidos, [key]: resultValidacion.data[key] };
+      }
+    }
+
     const resultUpdate = await modelPrice.updatePedido(
-      resultValidacion.data,
+      dataPedidos,
+      dataPedidosProductos,
       req.params.id
     );
 
-    if (resultUpdate.error) {
-      throw resultUpdate;
-    } else {
-      res.send(resultUpdate);
-    }
+    res.send(resultUpdate);
   } catch (error) {
     if (error.hasOwnProperty("statusCode")) {
       console.log(error);
@@ -245,7 +397,8 @@ export const deleteAllPagos = async (req, res) => {
 
 export const deletePago = async (req, res) => {
   try {
-    const result = await modelPrice.deletePago(req.params.pagoId);
+    const params = { clienteId: req.params.id, pagoId: req.params.pagoId };
+    const result = await modelPrice.deletePago(params);
     if (result.error) throw result;
     res.send(result);
   } catch (error) {
@@ -262,7 +415,40 @@ export const getLiquidados = async (req, res) => {
   try {
     const result = await modelPrice.getLiquidados(req.params.id);
     if (result.error) throw result;
-    res.send(result);
+    const data = result.map((cliente) => {
+      return {
+        cliente_id: cliente.id,
+        name: cliente.name,
+        pedidos_liquidados: cliente.pedidos_liquidados.map((pedido) => {
+          let totalPrecio_lista = pedido.productos
+            .map((producto) => producto.precio_lista * producto.cantidad)
+            .reduce((acc, precio) => (acc += precio));
+          let totalPrecio_cliente = pedido.productos
+            .map((producto) => producto.precio_cliente * producto.cantidad)
+            .reduce((acc, precio) => (acc += precio));
+          let totalPagos =
+            pedido.pagos === null
+              ? 0
+              : pedido.pagos
+                  .map((pago) => {
+                    return pago.pago;
+                  })
+                  .reduce((acc, pago) => (acc += pago));
+          return {
+            ...pedido,
+            ganancia: totalPrecio_cliente - totalPrecio_lista,
+            restante: totalPrecio_cliente - totalPagos,
+            total: {
+              precio_lista: totalPrecio_lista,
+              precio_cliente: totalPrecio_cliente,
+              abonado: totalPagos,
+            },
+          };
+        }),
+      };
+    });
+
+    res.send(data);
   } catch (error) {
     if (error.hasOwnProperty("statusCode")) {
       console.log(error);
