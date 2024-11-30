@@ -16,13 +16,14 @@ import {
   getLiquidados,
   postProductos,
   postProductoToPedido,
+  deleteClientes,
 } from "../controller/price_controler.js";
 
 export const priceRouter = Router();
 
 priceRouter.get("/", getData);
 priceRouter.get("/clientes", getAllClientes);
-priceRouter.get("/clientes/:id", getCliente);
+priceRouter.get("/detalles/:id", getCliente); // detalle de un cliente
 priceRouter.get("/clientes/:id/liquidados", getLiquidados); // liquidados por cliente
 priceRouter.get("/productos", getProductos);
 
@@ -40,3 +41,4 @@ priceRouter.patch("/pagos/:pago", updatePago); // aqui si va el numero de pago p
 
 priceRouter.delete("/pedido/:id", deleteAllPagos); //liquidar
 priceRouter.delete("/clientes/:id/:pagoId", deletePago); // verificar si este edponit se utiliza si no eliminarlo
+priceRouter.delete("/clientes/:id", deleteClientes); // verificar si este edponit se utiliza si no eliminarlo

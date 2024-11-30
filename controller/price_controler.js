@@ -458,3 +458,20 @@ export const getLiquidados = async (req, res) => {
     }
   }
 };
+
+export const deleteClientes = async (req, res) => {
+  try {
+    const clienteId = req.params.id;
+    const result = await modelPrice.deleteClientes(clienteId);
+    console.log(result);
+    if (result.error) throw result;
+    res.send(result);
+  } catch (error) {
+    if (error.hasOwnProperty("statusCode")) {
+      console.log(error);
+      res.status(error.statusCode).send(error);
+    } else {
+      console.log(error);
+    }
+  }
+};

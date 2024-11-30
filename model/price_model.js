@@ -253,6 +253,20 @@ WHERE pedidos.id=pedidos_productos.pedido_id AND productos.id=pedidos_productos.
   },
   postClientes: async (data) => {
     try {
+      const [resultCliente] = await connection.query(
+        `SELECT name FROM clientes WHERE name=?;`,
+        [data.name]
+      );
+      if (resultCliente.length > 0)
+        throw {
+          error: true,
+          success: false,
+          statusCode: 208,
+          message: "el nombre ya se encuentra en la BD",
+          name: data.name,
+        };
+
+      console.log(data.name);
       const querry = insertSql(data, "clientes");
       const [result] = await connection.query(
         querry.consulta,
@@ -983,6 +997,41 @@ WHERE pedidos_liquidados.id=pedidos_productos_liquidados.pedido_id AND productos
       } else {
         console.log(error);
         return error;
+      }
+    } finally {
+      // Liberar la conexión
+      if (connection) connection.release();
+    }
+  },
+  deleteClientes: async (clienteId) => {
+    try {
+      await connection.beginTransaction();
+
+      const resultCliente = await validarExistenciaClienteId(clienteId);
+
+      if (resultCliente.error) return resultCliente;
+
+      const [resultdelete] = await connection.query(
+        `DELETE FROM clientes WHERE id = UUID_TO_BIN(?);`,
+        [clienteId]
+      );
+      console.log(resultdelete);
+      if (resultdelete.affectedRows >= 1) {
+        await connection.commit(); // Confirma los cambios
+        return {
+          message: "Cliente eliminado correctamente.",
+          error: false,
+          success: true,
+        };
+      }
+    } catch (error) {
+      await connection.rollback();
+      if (error.hasOwnProperty("code")) {
+        console.error(error);
+        return { error: true, code: error.code, statusCode: 400 };
+      } else {
+        console.log(error);
+        return { error: true };
       }
     } finally {
       // Liberar la conexión
