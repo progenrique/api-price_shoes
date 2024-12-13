@@ -1,20 +1,20 @@
 import msql from "mysql2/promise";
 
-/* const config = {
+const config = {
   host: "bhqy07iwlv4e0xz2duhs-mysql.services.clever-cloud.com",
   user: "ukybdit7n9q10mwb",
   port: 3306,
   password: "DYe8yJWARTAQ7bZFB0jW",
   database: "bhqy07iwlv4e0xz2duhs",
 };
- */
-const config = {
+
+/*const config = {
   host: "127.0.0.1",
   user: "root",
   port: 8081,
   password: "Sn@ke",
   database: "price_shoes",
-};
+};*/
 
 const pool = msql.createPool({
   ...config,
