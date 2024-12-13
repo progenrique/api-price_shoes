@@ -63,7 +63,7 @@ const validarExistenciaClienteId = async (id) => {
 
 const validarExistenciaProductos = async (productoId) => {
   const [resultProductoId] = await connection.query(
-    `SELECT id FROM price_shoes.productos where id_price=?`,
+    `SELECT id FROM productos where id_price=?`,
     [productoId]
   );
   if (resultProductoId.length !== 0) {
@@ -120,15 +120,21 @@ const insertSql = (data, table) => {
 
 export const modelPrice = {
   getAll: async () => {
-    const consulta = `SELECT BIN_TO_UUID(clientes.id) AS cliente_id,
+    const consulta = `SELECT 
+BIN_TO_UUID(clientes.id) AS cliente_id,
 clientes.name,
 JSON_ARRAYAGG(
 JSON_OBJECT(
 "numero_pedido",pedidos.id,
 "numero_pagos",pedidos.numero_pagos,
 "fecha_entrega",pedidos.fecha_entrega,
-"pagos",(SELECT json_arrayagg(pagos.pago) FROM pagos WHERE pagos.pedido_id=pedidos.id),
-"productos",(select json_arrayagg(
+"pagos",(
+SELECT 
+json_arrayagg(pagos.pago) 
+FROM pagos 
+WHERE pagos.pedido_id=pedidos.id),
+"productos",
+(select json_arrayagg(
 json_object(
 "producto_id",productos.id,
 "precio_lista",productos.precio_lista,
@@ -137,11 +143,11 @@ json_object(
 "cantidad",pedidos_productos.cantidad
 ))
 from productos
-JOIN pedidos_productos ON pedidos.id= pedidos_productos.pedido_id
-where pedidos.id=pedidos_productos.pedido_id AND productos.id=pedidos_productos.producto_id
+JOIN pedidos_productos ON productos.id= pedidos_productos.producto_id
+where pedidos.id=pedidos_productos.pedido_id 
 ))) AS pedidos
 FROM clientes
- JOIN pedidos ON clientes.id=pedidos.cliente_id 
+ JOIN pedidos  ON clientes.id=pedidos.cliente_id 
 GROUP BY clientes.id,clientes.name;`;
     try {
       const [data] = await connection.query(consulta);
@@ -212,7 +218,7 @@ JSON_OBJECT(
 "cantidad",pedidos_productos.cantidad
 ))
 FROM productos
-JOIN pedidos_productos ON pedidos.id= pedidos_productos.pedido_id
+JOIN pedidos_productos ON productos.id= pedidos_productos.producto_id
 WHERE pedidos.id=pedidos_productos.pedido_id AND productos.id=pedidos_productos.producto_id
 ))) AS pedidos  
    FROM clientes
