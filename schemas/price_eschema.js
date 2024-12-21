@@ -137,7 +137,7 @@ const updateclienteSchema = z.object({
       required_error: "El campo es obligatorio",
       invalid_type_error: "Debe ser una cadena de texto",
     })
-    .min(5, { message: "Debe tener al menos 5 caracteres" })
+    .min(2, { message: "Debe tener al menos 2 caracteres" })
     .max(20, { message: "No puede tener más de 20 caracteres" })
     .regex(/^[a-zA-Z]+$/, { message: "Solo se permiten letras" }),
 });
