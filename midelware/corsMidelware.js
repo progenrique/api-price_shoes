@@ -3,7 +3,7 @@ import cors from "cors";
 const ACCEPTED_ORIGINS = [
   "http://localhost:8080",
   "http://localhost:5173",
-  "https://price-shoes-r7gq.vercel.app",
+  "https://price-shoes.vercel.app",
   "https://api-price-shoes.vercel.app/",
 ];
 
